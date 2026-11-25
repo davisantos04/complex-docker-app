@@ -1,0 +1,72 @@
+name: Deploy Frontend to Azure Container Apps
+
+on:
+  workflow_dispatch:
+  push: 
+    branches: [main]
+  pull_request: 
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AZURE_CONTAINER_REGISTRY: acrdavisantos
+      ACR_LOGIN_SERVER: acrdavisantos.azurecr.io
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Test Application
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ env.AZURE_CONTAINER_REGISTRY }}/react-test 
+            -f ./client/Dockerfile.dev ./client
+
+      - name: Test client
+        run: |
+          docker run --rm 
+            ${{ env.AZURE_CONTAINER_REGISTRY }}/react-test \
+            npm test -- --coverage
+
+      # Login with Azure
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Login to ACR
+      - name: Login to ACR
+        run: |
+          az acr login --name ${{ env.AZURE_CONTAINER_REGISTRY }}
+
+      # Build Production Application
+      - name: Build client image
+        run: docker build -t ${{ env.AZURE_CONTAINER_REGISTRY }}/multi-client ./client
+
+      - name: Build nginx image
+        run: docker build -t ${{ env.AZURE_CONTAINER_REGISTRY }}/multi-nginx ./nginx
+
+      - name: Build server image
+        run: docker build -t ${{ env.AZURE_CONTAINER_REGISTRY }}/multi-server ./server
+
+      - name: Build worker image
+        run: docker build -t ${{ env.AZURE_CONTAINER_REGISTRY }}/multi-worker ./worker
+
+      # Push images to ACR
+      - name: Push Docker images
+        run: |
+          docker push ${{ env.ACR_LOGIN_SERVER }}/multi-client:latest
+          docker push ${{ env.ACR_LOGIN_SERVER }}/multi-nginx:latest
+          docker push ${{ env.ACR_LOGIN_SERVER }}/multi-server:latest
+          docker push ${{ env.ACR_LOGIN_SERVER }}/multi-worker:latest
+
+
