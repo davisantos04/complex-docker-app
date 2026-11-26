@@ -70,4 +70,7 @@ jobs:
           docker push ${{ env.ACR_LOGIN_SERVER }}/multi-server:latest
           docker push ${{ env.ACR_LOGIN_SERVER }}/multi-worker:latest
 
+      - name: Run compose
+        run: docker-compose up
+
 
